@@ -16,6 +16,7 @@ import ImpactAnalysis from "@/pages/impact-analysis";
 import CodeSearch from "@/pages/code-search";
 import EngineeringInsights from "@/pages/engineering-insights";
 import DocumentationGenerator from "@/pages/documentation-generator";
+import PRIntelligence from "@/pages/pr-intelligence";
 
 const queryClient = new QueryClient();
 function AppBoundary({ children }: { children: ReactNode }) { return <ErrorBoundary>{children}</ErrorBoundary>; }
@@ -28,6 +29,7 @@ function RoutedApp() {
   if (location === "/engineering") return <EngineeringInsights />;
   if (location === "/architecture") return <ArchitectureView />;
   if (location === "/modules") return <ModuleMap />;
+  if (location === "/pr-intelligence") return <PRIntelligence />;
   if (location === "/documentation") return <DocumentationGenerator />;
   if (location === "/search") return <><CodeSearch /><Link href="/insights" className="ci-ai-action fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-bold text-white shadow-lg"><Sparkles size={15}/> AI Insights</Link></>;
   if (location === "/impact") return <ImpactAnalysis />;

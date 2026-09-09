@@ -18,10 +18,10 @@ import DocumentationGenerator from "@/pages/documentation-generator";
 const queryClient = new QueryClient();
 function AppBoundary({ children }: { children: ReactNode }) { return <ErrorBoundary>{children}</ErrorBoundary>; }
 function WorkspaceActions() {
-  return <div className="fixed bottom-5 left-5 z-40 hidden items-center gap-2 lg:flex">
-    <Link href="/search" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted"><Search size={15}/> Code Search</Link>
-    <Link href="/documentation" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted"><BookOpen size={15}/> Documentation</Link>
-    <Link href="/engineering" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted"><TrendingUp size={15}/> Engineering</Link>
+  return <div className="fixed bottom-5 right-5 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap justify-end gap-2 lg:max-w-none">
+    <Link href="/search" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted sm:px-4 sm:py-3"><Search size={15}/> Code Search</Link>
+    <Link href="/documentation" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted sm:px-4 sm:py-3"><BookOpen size={15}/> Documentation</Link>
+    <Link href="/engineering" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted sm:px-4 sm:py-3"><TrendingUp size={15}/> Engineering</Link>
   </div>;
 }
 

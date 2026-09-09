@@ -8,7 +8,6 @@ import { scanCodebase, type ScanResult } from "../lib/codebase-scanner";
 
 const execFileAsync = promisify(execFile);
 const router: IRouter = Router();
-
 let currentScan: ScanResult | null = null;
 let currentRepoUrl = "";
 let scannedAt = new Date(0);
@@ -24,10 +23,16 @@ function normalizeRepoUrl(value: unknown): string {
   return `https://github.com/${match[1]}/${match[2]}`;
 }
 
-function healthScore(result: ScanResult): number {
-  const high = result.risks.filter((risk) => risk.severity === "high").length;
-  const medium = result.risks.filter((risk) => risk.severity === "medium").length;
-  return Math.max(0, Math.min(100, 100 - high * 12 - medium * 4));
+function healthScore(result: ScanResult): { score: number; label: string; highFindings: number; mediumFindings: number; lowFindings: number } {
+  const highFindings = result.risks.filter((risk) => risk.severity === "high").length;
+  const mediumFindings = result.risks.filter((risk) => risk.severity === "medium").length;
+  const lowFindings = result.risks.filter((risk) => risk.severity === "low").length;
+  const fileCount = Math.max(1, result.files.length);
+  const densityPenalty = Math.min(35, (highFindings / fileCount) * 180 + (mediumFindings / fileCount) * 55 + (lowFindings / fileCount) * 15);
+  const volumePenalty = Math.min(40, highFindings * 5 + mediumFindings * 1.5 + lowFindings * 0.5);
+  const score = Math.round(Math.max(0, Math.min(100, 100 - Math.min(75, densityPenalty * 0.65 + volumePenalty * 0.35))));
+  const label = score >= 85 ? "Excellent" : score >= 70 ? "Healthy" : score >= 50 ? "Needs attention" : "Critical";
+  return { score, label, highFindings, mediumFindings, lowFindings };
 }
 
 async function cloneForFile(repoUrl: string) {
@@ -48,7 +53,7 @@ async function runRepositoryScan(repoUrl: string) {
   currentRepoUrl = repoUrl;
   scannedAt = new Date();
   activity = [
-    { id: `scan-${Date.now()}`, title: "Repository scan completed", detail: `${result.files.length} files analyzed and ${result.graphEdges.length} dependencies mapped`, timestamp: scannedAt.toISOString(), type: "scan" },
+    { id: `scan-${Date.now()}`, title: "Repository scan completed", detail: `${result.files.length} files analyzed and ${result.graphEdges.length} internal dependencies mapped`, timestamp: scannedAt.toISOString(), type: "scan" },
     ...result.risks.slice(0, 4).map((risk) => ({ id: risk.id, title: risk.title, detail: risk.detail, timestamp: scannedAt.toISOString(), type: "finding" as const })),
   ].slice(0, 10);
   return result;
@@ -59,15 +64,15 @@ router.post("/repository/scan", async (req, res): Promise<void> => {
     const repoUrl = normalizeRepoUrl(req.body?.repoUrl);
     const result = await runRepositoryScan(repoUrl);
     res.status(200).json({ status: "completed", projectName: result.projectName, repoUrl, scannedAt });
-  } catch (error) {
-    res.status(400).json({ error: error instanceof Error ? error.message : "Repository scan failed" });
-  }
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : "Repository scan failed" }); }
 });
 
 router.get("/repository/overview", (_req, res): void => {
   if (!currentScan) { res.status(404).json({ error: "No repository scanned yet" }); return; }
   const modules = new Set(currentScan.files.map((file) => file.directory));
-  res.json({ projectName: currentScan.projectName, repoUrl: currentRepoUrl, scannedAt, totalFiles: currentScan.files.length, totalModules: modules.size, totalDependencies: currentScan.graphEdges.length, healthScore: healthScore(currentScan), riskCount: currentScan.risks.length, languageBreakdown: currentScan.languageBreakdown });
+  const health = healthScore(currentScan);
+  const externalDependencies = currentScan.externalDependencies?.length ?? 0;
+  res.json({ projectName: currentScan.projectName, repoUrl: currentRepoUrl, scannedAt, totalFiles: currentScan.files.length, totalModules: modules.size, totalDependencies: currentScan.graphEdges.length, internalDependencies: currentScan.graphEdges.length, externalDependencies, healthScore: health.score, healthLabel: health.label, healthBreakdown: { highFindings: health.highFindings, mediumFindings: health.mediumFindings, lowFindings: health.lowFindings }, riskCount: currentScan.risks.length, languageBreakdown: currentScan.languageBreakdown });
 });
 
 router.get("/repository/files", (req, res): void => {
@@ -96,11 +101,8 @@ router.get("/repository/file/*path", async (req, res): Promise<void> => {
     if (stat.size > 1024 * 1024) { res.status(413).json({ error: "File is larger than the 1 MB display limit" }); return; }
     const content = await fs.readFile(absolute, "utf8");
     res.json({ ...known, content });
-  } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : "Could not open file" });
-  } finally {
-    if (cloned) await fs.rm(cloned.temp, { recursive: true, force: true });
-  }
+  } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : "Could not open file" }); }
+  finally { if (cloned) await fs.rm(cloned.temp, { recursive: true, force: true }); }
 });
 
 router.get("/repository/graph", (_req, res): void => {
@@ -141,9 +143,7 @@ router.get("/repository/security", async (_req, res): Promise<void> => {
         for (const rule of rules) {
           const matchIndex = lines.findIndex((line) => rule.pattern.test(line));
           rule.pattern.lastIndex = 0;
-          if (matchIndex >= 0) {
-            findings.push({ id: `${rule.id}-${file.path}`, severity: rule.severity, title: rule.title, rule: rule.id, file: file.path, line: matchIndex + 1, detail: `${rule.title} matched by the current static rule set.` });
-          }
+          if (matchIndex >= 0) findings.push({ id: `${rule.id}-${file.path}`, severity: rule.severity, title: rule.title, rule: rule.id, file: file.path, line: matchIndex + 1, detail: `${rule.title} matched by the current static rule set.` });
         }
       } catch { /* unreadable files are skipped */ }
     }
@@ -152,13 +152,9 @@ router.get("/repository/security", async (_req, res): Promise<void> => {
     const low = findings.filter((f) => f.severity === "low").length;
     const score = findings.length ? Math.max(0, 100 - high * 20 - medium * 8 - low * 3) : null;
     res.json({ score, status: findings.length ? "findings" : "no_findings", filesScanned, rulesScanned: rules.length, findings, counts: { high, medium, low, total: findings.length }, scannedAt: scannedAt.toISOString() });
-  } catch (error) {
-    res.status(500).json({ error: error instanceof Error ? error.message : "Security scan failed" });
-  } finally {
-    if (cloned) await fs.rm(cloned.temp, { recursive: true, force: true });
-  }
+  } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : "Security scan failed" }); }
+  finally { if (cloned) await fs.rm(cloned.temp, { recursive: true, force: true }); }
 });
 
 router.get("/repository/activity", (_req, res): void => { res.json(activity); });
-
 export default router;

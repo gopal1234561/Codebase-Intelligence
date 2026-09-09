@@ -1,0 +1,81 @@
+/* Codebase Intelligence visual system: restrained color, depth and motion. */
+@keyframes ciAmbientFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(0, -8px, 0) scale(1.015); }
+}
+@keyframes ciPulse {
+  0%, 100% { box-shadow: 0 10px 30px hsl(222 34% 15% / .14), 0 0 0 0 hsl(163 54% 55% / .20); }
+  50% { box-shadow: 0 16px 38px hsl(222 34% 15% / .20), 0 0 0 7px hsl(163 54% 55% / 0); }
+}
+@keyframes ciShimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+.ci-shell {
+  position: relative;
+  isolation: isolate;
+}
+.ci-shell::before,
+.ci-shell::after {
+  content: "";
+  position: fixed;
+  width: 34rem;
+  height: 34rem;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: -1;
+  filter: blur(70px);
+  opacity: .13;
+  animation: ciAmbientFloat 12s ease-in-out infinite;
+}
+.ci-shell::before {
+  left: -14rem;
+  top: -14rem;
+  background: hsl(198 80% 58%);
+}
+.ci-shell::after {
+  right: -15rem;
+  bottom: -15rem;
+  background: hsl(275 65% 64%);
+  animation-delay: -5s;
+}
+
+.ci-surface {
+  background: hsl(var(--card) / .88);
+  border-color: hsl(var(--border) / .82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.ci-interactive {
+  transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease, background-color .2s ease;
+}
+.ci-interactive:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--primary) / .34);
+  box-shadow: 0 12px 30px hsl(222 34% 15% / .10);
+}
+.ci-gradient-text {
+  background: linear-gradient(100deg, hsl(var(--primary)), hsl(198 72% 54%), hsl(275 62% 64%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.ci-ai-action {
+  background: linear-gradient(100deg, hsl(163 54% 43%), hsl(198 72% 48%), hsl(275 62% 58%));
+  animation: ciPulse 3s ease-in-out infinite;
+}
+.ci-ai-action:hover {
+  animation: none;
+  transform: translateY(-2px) scale(1.02);
+}
+.ci-shimmer {
+  background: linear-gradient(90deg, transparent, hsl(var(--primary) / .10), transparent);
+  background-size: 200% 100%;
+  animation: ciShimmer 2.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ci-shell::before, .ci-shell::after, .ci-ai-action, .ci-shimmer { animation: none; }
+  .ci-interactive { transition: none; }
+}

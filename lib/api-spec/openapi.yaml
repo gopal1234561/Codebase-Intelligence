@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: intelligence
+    description: Codebase intelligence and dependency mapping
 paths:
   /healthz:
     get:
@@ -24,6 +26,144 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /intelligence/overview:
+    get:
+      operationId: getIntelligenceOverview
+      tags: [intelligence]
+      summary: Get the latest codebase overview
+      responses:
+        "200":
+          description: Codebase overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/IntelligenceOverview"
+  /intelligence/graph:
+    get:
+      operationId: getDependencyGraph
+      tags: [intelligence]
+      summary: Get the dependency graph
+      parameters:
+        - name: groupBy
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [directory, layer]
+            default: directory
+      responses:
+        "200":
+          description: Dependency graph
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DependencyGraph"
+  /intelligence/files:
+    get:
+      operationId: listCodebaseFiles
+      tags: [intelligence]
+      summary: List files in the analyzed codebase
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: risk
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [all, high, medium, low]
+            default: all
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: File inventory
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CodebaseFile"
+  /intelligence/files/{path}:
+    get:
+      operationId: getCodebaseFile
+      tags: [intelligence]
+      summary: Get a file's intelligence details
+      parameters:
+        - name: path
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: File intelligence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileDetail"
+        "404":
+          description: File not found
+  /intelligence/risks:
+    get:
+      operationId: listCodebaseRisks
+      tags: [intelligence]
+      summary: List prioritized codebase risks
+      responses:
+        "200":
+          description: Risk findings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RiskFinding"
+  /intelligence/activity:
+    get:
+      operationId: listScanActivity
+      tags: [intelligence]
+      summary: List recent scan activity
+      responses:
+        "200":
+          description: Recent scan activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+  /intelligence/scan:
+    post:
+      operationId: startCodebaseScan
+      tags: [intelligence]
+      summary: Refresh the codebase scan
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ScanInput"
+      responses:
+        "202":
+          description: Scan accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ScanResult"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +173,196 @@ components:
           type: string
       required:
         - status
+    LanguageBreakdown:
+      type: object
+      required: [language, files, percentage]
+      properties:
+        language:
+          type: string
+        files:
+          type: integer
+        percentage:
+          type: number
+    IntelligenceOverview:
+      type: object
+      required:
+        - projectName
+        - lastScanAt
+        - totalFiles
+        - totalModules
+        - totalDependencies
+        - healthScore
+        - riskCount
+        - languageBreakdown
+      properties:
+        projectName:
+          type: string
+        lastScanAt:
+          type: string
+          format: date-time
+        totalFiles:
+          type: integer
+        totalModules:
+          type: integer
+        totalDependencies:
+          type: integer
+        healthScore:
+          type: integer
+        riskCount:
+          type: integer
+        languageBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/LanguageBreakdown"
+    DependencyNode:
+      type: object
+      required: [id, label, path, directory, language, lines, imports, importedBy, risk]
+      properties:
+        id:
+          type: string
+        label:
+          type: string
+        path:
+          type: string
+        directory:
+          type: string
+        language:
+          type: string
+        lines:
+          type: integer
+        imports:
+          type: integer
+        importedBy:
+          type: integer
+        risk:
+          type: string
+          enum: [high, medium, low]
+    DependencyEdge:
+      type: object
+      required: [source, target, kind]
+      properties:
+        source:
+          type: string
+        target:
+          type: string
+        kind:
+          type: string
+          enum: [import, reference, generated]
+    DependencyGraph:
+      type: object
+      required: [nodes, edges, groups]
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/DependencyNode"
+        edges:
+          type: array
+          items:
+            $ref: "#/components/schemas/DependencyEdge"
+        groups:
+          type: array
+          items:
+            type: string
+    CodebaseFile:
+      type: object
+      required: [path, name, directory, language, lines, complexity, risk, riskLabel, summary]
+      properties:
+        path:
+          type: string
+        name:
+          type: string
+        directory:
+          type: string
+        language:
+          type: string
+        lines:
+          type: integer
+        complexity:
+          type: integer
+        risk:
+          type: string
+          enum: [high, medium, low]
+        riskLabel:
+          type: string
+        summary:
+          type: string
+    FileDetail:
+      allOf:
+        - $ref: "#/components/schemas/CodebaseFile"
+        - type: object
+          required: [imports, importedBy, symbols, excerpt]
+          properties:
+            imports:
+              type: array
+              items:
+                type: string
+            importedBy:
+              type: array
+              items:
+                type: string
+            symbols:
+              type: array
+              items:
+                type: string
+            excerpt:
+              type: string
+    RiskFinding:
+      type: object
+      required: [id, severity, title, detail, file, impact, relatedFiles]
+      properties:
+        id:
+          type: string
+        severity:
+          type: string
+          enum: [high, medium, low]
+        title:
+          type: string
+        detail:
+          type: string
+        file:
+          type: string
+        impact:
+          type: string
+        relatedFiles:
+          type: array
+          items:
+            type: string
+    ActivityItem:
+      type: object
+      required: [id, title, detail, timestamp, type]
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        detail:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        type:
+          type: string
+          enum: [scan, finding, dependency, system]
+    ScanInput:
+      type: object
+      properties:
+        scope:
+          type: string
+          enum: [full, dependencies, risks]
+          default: full
+    ScanResult:
+      type: object
+      required: [scanId, acceptedAt, scope, status]
+      properties:
+        scanId:
+          type: string
+        acceptedAt:
+          type: string
+          format: date-time
+        scope:
+          type: string
+        status:
+          type: string
+          enum: [accepted]
 

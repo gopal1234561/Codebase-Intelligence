@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Codebase Intelligence"
+description = "A developer workspace for understanding repository structure, dependency relationships, file risk, and codebase health at a glance."
+version = "1.0.0"
+id = "artifacts/codebase-intelligence"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 21423
+
+[services.development]
+run = "pnpm --filter @workspace/codebase-intelligence run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/codebase-intelligence", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/codebase-intelligence/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "21423"
+BASE_PATH = "/"

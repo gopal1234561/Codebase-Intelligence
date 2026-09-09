@@ -6,6 +6,7 @@ import searchRouter from "./search";
 import analyticsRouter from "./analytics";
 import documentationRouter from "./documentation";
 import prIntelligenceRouter from "./pr-intelligence";
+import vulnerabilitiesRouter from "./vulnerabilities";
 
 const router: IRouter = Router();
 
@@ -16,5 +17,6 @@ router.use(intelligenceRouter);
 router.use(analyticsRouter);
 router.use(documentationRouter);
 router.use(prIntelligenceRouter);
+router.use(vulnerabilitiesRouter);
 
 export default router;

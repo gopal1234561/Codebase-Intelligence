@@ -7,6 +7,7 @@ import { Router as WouterRouter, Link, useLocation } from "wouter";
 import { Sparkles } from "lucide-react";
 import RepositoryDashboard from "@/pages/repository-dashboard";
 import IntelligenceCenter from "@/pages/intelligence-center";
+import ArchitectureView from "@/pages/architecture-view";
 
 const queryClient = new QueryClient();
 
@@ -17,6 +18,7 @@ function AppBoundary({ children }: { children: ReactNode }) {
 function RoutedApp() {
   const [location] = useLocation();
   if (location === "/insights") return <IntelligenceCenter />;
+  if (location === "/graph") return <ArchitectureView />;
   return <><RepositoryDashboard /><Link href="/insights" className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground shadow-lg transition-transform hover:-translate-y-0.5"><Sparkles size={15}/> AI Insights</Link></>;
 }
 

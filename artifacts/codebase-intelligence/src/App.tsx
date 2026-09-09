@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { type ReactNode, useEffect } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Toaster } from "@/components/ui/toaster";
@@ -20,7 +20,20 @@ const queryClient = new QueryClient();
 function AppBoundary({ children }: { children: ReactNode }) { return <ErrorBoundary>{children}</ErrorBoundary>; }
 
 function RoutedApp() {
-  const [location] = useLocation();
+  const [location, navigate] = useLocation();
+
+  useEffect(() => {
+    if (location !== "/") sessionStorage.setItem("codebase-workspace-active", "true");
+  }, [location]);
+
+  // Keep / as the public landing page on a fresh visit, but treat legacy
+  // feature-page back links to / as a request to return to the workspace.
+  useEffect(() => {
+    if (location === "/" && sessionStorage.getItem("codebase-workspace-active") === "true") {
+      navigate("/dashboard", { replace: true });
+    }
+  }, [location, navigate]);
+
   if (location === "/") return <LandingPage />;
   if (location === "/insights") return <IntelligenceCenter />;
   if (location === "/engineering") return <EngineeringInsights />;

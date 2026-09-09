@@ -17,7 +17,13 @@ import DocumentationGenerator from "@/pages/documentation-generator";
 
 const queryClient = new QueryClient();
 function AppBoundary({ children }: { children: ReactNode }) { return <ErrorBoundary>{children}</ErrorBoundary>; }
-function WorkspaceActions() { return <><Link href="/search" className="fixed bottom-5 left-5 z-40 inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg hover:bg-muted"><Search size={15}/> Code Search</Link><Link href="/documentation" className="fixed bottom-5 left-40 z-40 hidden items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg hover:bg-muted lg:inline-flex"><BookOpen size={15}/> Documentation</Link><Link href="/engineering" className="fixed bottom-5 left-[255px] z-40 hidden items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg hover:bg-muted xl:inline-flex"><TrendingUp size={15}/> Engineering</Link><Link href="/insights" className="ci-ai-action fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-bold text-white shadow-lg"><Sparkles size={15}/> AI Insights</Link></>; }
+function WorkspaceActions() {
+  return <div className="fixed bottom-5 left-5 z-40 hidden items-center gap-2 lg:flex">
+    <Link href="/search" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted"><Search size={15}/> Code Search</Link>
+    <Link href="/documentation" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted"><BookOpen size={15}/> Documentation</Link>
+    <Link href="/engineering" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted"><TrendingUp size={15}/> Engineering</Link>
+  </div>;
+}
 
 function RoutedApp() {
   const [location] = useLocation();

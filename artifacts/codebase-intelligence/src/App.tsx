@@ -29,7 +29,13 @@ function RoutedApp() {
   const [location] = useLocation();
   const workspaceRoutes = ["/", "/dashboard", "/files", "/graph", "/risks", "/activity", "/impact"];
   const isWorkspaceRoute = workspaceRoutes.includes(location);
-  useEffect(() => { if (["/dashboard", "/files", "/graph", "/risks", "/activity", "/impact", "/architecture", "/documentation"].includes(location)) sessionStorage.setItem("codebase-workspace-active", "true"); }, [location]);
+
+  useEffect(() => {
+    if (["/dashboard", "/files", "/graph", "/risks", "/activity", "/impact", "/architecture", "/documentation"].includes(location)) {
+      sessionStorage.setItem("codebase-workspace-active", "true");
+    }
+  }, [location]);
+
   if (location === "/insights") return <IntelligenceCenter />;
   if (location === "/engineering") return <EngineeringInsights />;
   if (location === "/architecture") return <ArchitectureView />;
@@ -37,12 +43,8 @@ function RoutedApp() {
   if (location === "/search") return <><CodeSearch /><Link href="/insights" className="ci-ai-action fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-bold text-white shadow-lg"><Sparkles size={15}/> AI Insights</Link></>;
   if (location === "/impact") return <><ImpactAnalysis/><WorkspaceActions/></>;
   if (location === "/graph") return <><DependencyGraph /><WorkspaceActions /></>;
-  if (isWorkspaceRoute) {
-    const hasActiveWorkspace = typeof window !== "undefined" && sessionStorage.getItem("codebase-workspace-active") === "true";
-    if (location === "/" && !hasActiveWorkspace) return <ArchitectureView />;
-    return <><RepositoryDashboard /><WorkspaceActions /></>;
-  }
-  return <ArchitectureView />;
+  if (isWorkspaceRoute) return <><RepositoryDashboard /><WorkspaceActions /></>;
+  return <RepositoryDashboard />;
 }
 
 export default function App() { return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><AppBoundary><RoutedApp /></AppBoundary></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>; }

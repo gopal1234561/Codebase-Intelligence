@@ -16,6 +16,10 @@ function AppBoundary({ children }: { children: ReactNode }) {
   return <ErrorBoundary>{children}</ErrorBoundary>;
 }
 
+function AIInsightsButton() {
+  return <Link href="/insights" className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground shadow-lg transition-transform hover:-translate-y-0.5"><Sparkles size={15}/> AI Insights</Link>;
+}
+
 function RoutedApp() {
   const [location] = useLocation();
   const workspaceRoutes = ["/", "/dashboard", "/files", "/graph", "/risks", "/activity"];
@@ -29,11 +33,11 @@ function RoutedApp() {
 
   if (location === "/insights") return <IntelligenceCenter />;
   if (location === "/architecture") return <ArchitectureView />;
-  if (location === "/graph") return <><RepositoryDashboard /><Link href="/insights" className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground shadow-lg transition-transform hover:-translate-y-0.5"><Sparkles size={15}/> AI Insights</Link></>;
+  if (location === "/graph") return <><DependencyGraph /><AIInsightsButton /></>;
   if (isWorkspaceRoute) {
     const hasActiveWorkspace = typeof window !== "undefined" && sessionStorage.getItem("codebase-workspace-active") === "true";
     if (location === "/" && !hasActiveWorkspace) return <ArchitectureView />;
-    return <><RepositoryDashboard /><Link href="/insights" className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground shadow-lg transition-transform hover:-translate-y-0.5"><Sparkles size={15}/> AI Insights</Link></>;
+    return <><RepositoryDashboard /><AIInsightsButton /></>;
   }
   return <ArchitectureView />;
 }

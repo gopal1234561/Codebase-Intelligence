@@ -4,7 +4,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Router as WouterRouter, Link, useLocation } from "wouter";
-import { BookOpen, Search, Sparkles, TrendingUp } from "lucide-react";
+import { Sparkles } from "lucide-react";
 import "./codebase-theme.css";
 import LandingPage from "@/pages/landing-page";
 import RepositoryDashboard from "@/pages/repository-dashboard";
@@ -18,13 +18,6 @@ import DocumentationGenerator from "@/pages/documentation-generator";
 
 const queryClient = new QueryClient();
 function AppBoundary({ children }: { children: ReactNode }) { return <ErrorBoundary>{children}</ErrorBoundary>; }
-function WorkspaceActions() {
-  return <div className="fixed bottom-5 right-5 z-40 flex max-w-[calc(100vw-2rem)] flex-wrap justify-end gap-2 lg:max-w-none">
-    <Link href="/search" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted sm:px-4 sm:py-3"><Search size={15}/> Code Search</Link>
-    <Link href="/documentation" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted sm:px-4 sm:py-3"><BookOpen size={15}/> Documentation</Link>
-    <Link href="/engineering" className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-xs font-bold text-foreground shadow-lg transition hover:bg-muted sm:px-4 sm:py-3"><TrendingUp size={15}/> Engineering</Link>
-  </div>;
-}
 
 function RoutedApp() {
   const [location] = useLocation();
@@ -34,9 +27,9 @@ function RoutedApp() {
   if (location === "/architecture") return <ArchitectureView />;
   if (location === "/documentation") return <DocumentationGenerator />;
   if (location === "/search") return <><CodeSearch /><Link href="/insights" className="ci-ai-action fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-bold text-white shadow-lg"><Sparkles size={15}/> AI Insights</Link></>;
-  if (location === "/impact") return <><ImpactAnalysis/><WorkspaceActions/></>;
-  if (location === "/graph") return <><DependencyGraph /><WorkspaceActions /></>;
-  return <><RepositoryDashboard /><WorkspaceActions /></>;
+  if (location === "/impact") return <ImpactAnalysis />;
+  if (location === "/graph") return <DependencyGraph />;
+  return <RepositoryDashboard />;
 }
 
 export default function App() { return <QueryClientProvider client={queryClient}><TooltipProvider><WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}><AppBoundary><RoutedApp /></AppBoundary></WouterRouter><Toaster /></TooltipProvider></QueryClientProvider>; }

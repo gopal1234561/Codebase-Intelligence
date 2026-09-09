@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, AlertTriangle, BarChart3, CheckCircle2, ExternalLink, FileCode2, GitBranch, LoaderCircle, Network, RefreshCw, Search, ShieldAlert, Sparkles, X } from "lucide-react";
+import { Activity, AlertTriangle, BarChart3, CheckCircle2, ExternalLink, FileCode2, GitBranch, LoaderCircle, Maximize2, Network, RefreshCw, Search, ShieldAlert, Sparkles, X, ZoomIn, ZoomOut } from "lucide-react";
 
 type Risk = "high" | "medium" | "low";
 type FileItem = { path: string; name: string; directory: string; language: string; lines: number; complexity: number; risk: Risk; riskLabel: string; summary: string; importsCount: number; importedByCount: number };
@@ -106,7 +106,7 @@ export default function RepositoryDashboard() {
           <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><p className="mb-2 font-mono text-[10px] uppercase tracking-[.2em] text-muted-foreground">Repository overview</p><h1 className="text-3xl font-extrabold tracking-tight md:text-4xl">{overview.projectName}</h1><a href={overview.repoUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">{overview.repoUrl}<ExternalLink size={12}/></a></div><div className="font-mono text-[10px] text-muted-foreground">Last scan {new Date(overview.scannedAt).toLocaleString()}</div></div>
           {page === "overview" && <OverviewView overview={overview} risks={risks} files={files} />}
           {page === "files" && <FilesView files={filteredFiles} allFiles={files} search={search} setSearch={setSearch} riskFilter={riskFilter} setRiskFilter={setRiskFilter} languageFilter={languageFilter} setLanguageFilter={setLanguageFilter} languages={languages} onOpen={openFile}/>} 
-          {page === "graph" && <GraphView graph={graph}/>} 
+          {page === "graph" && <GraphView graph={graph} onOpen={(path) => { const file = files.find((f) => f.path === path); if (file) void openFile(file); }}/>} 
           {page === "risks" && <RisksView risks={risks} onOpen={(path) => { const file = files.find((f) => f.path === path); if (file) void openFile(file); }}/>} 
           {page === "activity" && <ActivityView activity={activity}/>} 
         </>}
@@ -126,10 +126,50 @@ function FilesView({ files, allFiles, search, setSearch, riskFilter, setRiskFilt
   return <div><div className="mb-5 flex flex-col gap-3 rounded-xl border border-border bg-card p-4 lg:flex-row"><div className="flex flex-1 items-center gap-2 rounded-lg border border-border px-3"><Search size={15} className="text-muted-foreground"/><input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search paths, summaries, symbols..." className="w-full bg-transparent py-2 text-sm outline-none"/></div><select value={riskFilter} onChange={(e)=>setRiskFilter(e.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs"><option value="all">All risks</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select><select value={languageFilter} onChange={(e)=>setLanguageFilter(e.target.value)} className="rounded-lg border border-border bg-background px-3 py-2 text-xs"><option value="all">All languages</option>{languages.map((l)=><option key={l}>{l}</option>)}</select></div><div className="mb-3 flex items-center justify-between"><p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">{files.length.toLocaleString()} matching files · {allFiles.length.toLocaleString()} indexed</p></div><div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm"><div className="grid grid-cols-[minmax(0,1fr)_130px_90px_100px_100px] border-b border-border bg-muted/60 px-4 py-3 font-mono text-[10px] uppercase tracking-wider text-muted-foreground"><span>File</span><span>Language</span><span>Lines</span><span>Complexity</span><span>Risk</span></div>{files.map((file)=><button key={file.path} onClick={()=>onOpen(file)} className="grid w-full grid-cols-[minmax(0,1fr)_130px_90px_100px_100px] items-center border-b border-border px-4 py-3 text-left last:border-0 hover:bg-muted/50"><span className="min-w-0"><span className="block truncate font-mono text-xs font-semibold">{file.path}</span><span className="block truncate text-[11px] text-muted-foreground">{file.summary}</span></span><span className="text-xs text-muted-foreground">{file.language}</span><span className="font-mono text-xs">{file.lines}</span><span className="font-mono text-xs">{file.complexity}</span><span><RiskBadge risk={file.risk}/></span></button>)}{!files.length&&<div className="p-12 text-center text-sm text-muted-foreground">No files match your filters.</div>}</div></div>;
 }
 
-function GraphView({ graph }: { graph: Graph | null }) {
+function GraphView({ graph, onOpen }: { graph: Graph | null; onOpen: (path: string) => void }) {
+  const [zoom, setZoom] = useState(1);
   if (!graph) return <div className="rounded-xl border border-border p-12 text-center text-sm text-muted-foreground">No graph available.</div>;
-  const top = [...graph.nodes].sort((a,b)=>b.importedBy-a.importedBy).slice(0,30);
-  return <div className="grid gap-6 xl:grid-cols-[1fr_340px]"><section className="rounded-xl border border-border bg-slate-950 p-6 text-slate-200"><div className="mb-5 flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-widest text-slate-500">Live topology</p><p className="mt-1 text-sm font-semibold">{graph.nodes.length} nodes · {graph.edges.length} edges</p></div><span className="rounded-full border border-white/10 px-3 py-1 font-mono text-[10px] text-slate-400">import graph</span></div><div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{top.map((node)=><div key={node.id} className="rounded-lg border border-white/10 bg-white/5 p-3"><div className="flex items-center justify-between gap-2"><p className="truncate font-mono text-xs font-semibold">{node.label}</p><RiskBadge risk={node.risk}/></div><p className="mt-1 truncate text-[10px] text-slate-500">{node.path}</p><div className="mt-3 flex gap-4 font-mono text-[10px] text-slate-400"><span>{node.imports} imports</span><span>{node.importedBy} callers</span></div></div>)}</div></section><section className="rounded-xl border border-border bg-card p-6"><p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Most connected modules</p><div className="mt-4 space-y-3">{top.slice(0,10).map((node,i)=><div key={node.id} className="flex items-center gap-3"><span className="grid size-6 place-items-center rounded bg-muted font-mono text-[10px]">{i+1}</span><div className="min-w-0 flex-1"><p className="truncate font-mono text-xs font-semibold">{node.path}</p><p className="text-[10px] text-muted-foreground">{node.importedBy} callers</p></div></div>)}</div></section></div>;
+  if (!graph.nodes.length) return <div className="rounded-xl border border-border p-12 text-center text-sm text-muted-foreground">No dependency nodes were detected.</div>;
+
+  const visibleNodes = useMemo(() => [...graph.nodes].sort((a,b) => (b.importedBy + b.imports) - (a.importedBy + a.imports)).slice(0, 80), [graph.nodes]);
+  const visibleIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
+  const visibleEdges = useMemo(() => graph.edges.filter((edge) => visibleIds.has(edge.source) && visibleIds.has(edge.target)), [graph.edges, visibleIds]);
+  const positions = useMemo(() => {
+    const width = 1200;
+    const height = Math.max(720, Math.ceil(visibleNodes.length / 5) * 150 + 80);
+    const columns = Math.min(5, Math.max(2, Math.ceil(Math.sqrt(visibleNodes.length))));
+    const rows = Math.ceil(visibleNodes.length / columns);
+    const colGap = width / (columns + 1);
+    const rowGap = Math.max(130, (height - 100) / Math.max(rows, 1));
+    return new Map(visibleNodes.map((node, index) => [node.id, { x: colGap * ((index % columns) + 1), y: 70 + rowGap * Math.floor(index / columns) }]));
+  }, [visibleNodes]);
+
+  const riskStroke = { high: "#fb7185", medium: "#fbbf24", low: "#34d399" };
+  const edgePath = (source: {x:number;y:number}, target: {x:number;y:number}) => {
+    const dx = target.x - source.x;
+    const dy = target.y - source.y;
+    const curve = Math.min(110, Math.max(30, Math.abs(dx) * 0.18));
+    return `M ${source.x} ${source.y} C ${source.x + dx * 0.35} ${source.y + (dy > 0 ? curve : -curve)}, ${target.x - dx * 0.35} ${target.y - (dy > 0 ? curve : -curve)}, ${target.x} ${target.y}`;
+  };
+
+  const resetZoom = () => setZoom(1);
+  return <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+    <section className="overflow-hidden rounded-xl border border-border bg-slate-950 text-slate-200 shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+        <div><p className="font-mono text-[10px] uppercase tracking-widest text-slate-500">Live topology</p><p className="mt-1 text-sm font-semibold">{graph.nodes.length} nodes · {graph.edges.length} edges</p></div>
+        <div className="flex items-center gap-2"><span className="hidden rounded-full border border-white/10 px-3 py-1 font-mono text-[10px] text-slate-400 sm:inline">import graph</span><button onClick={() => setZoom((v) => Math.min(1.8, Number((v + 0.15).toFixed(2))))} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:bg-white/10" title="Zoom in"><ZoomIn size={15}/></button><button onClick={() => setZoom((v) => Math.max(0.55, Number((v - 0.15).toFixed(2))))} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:bg-white/10" title="Zoom out"><ZoomOut size={15}/></button><button onClick={resetZoom} className="rounded-lg border border-white/10 p-2 text-slate-300 hover:bg-white/10" title="Reset zoom"><Maximize2 size={15}/></button></div>
+      </div>
+      <div className="h-[720px] overflow-auto bg-[radial-gradient(circle_at_center,rgba(51,65,85,.28)_1px,transparent_1px)] [background-size:24px_24px]">
+        <svg width="1200" height={Math.max(720, Math.ceil(visibleNodes.length / 5) * 150 + 80)} viewBox={`0 0 1200 ${Math.max(720, Math.ceil(visibleNodes.length / 5) * 150 + 80)}`} className="min-w-[1000px] origin-top-left transition-transform duration-200" style={{ transform: `scale(${zoom})`, transformOrigin: "top left" }}>
+          <defs><marker id="dependency-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L9,4.5 L0,9 z" fill="#64748b" /></marker></defs>
+          <g opacity="0.9">{visibleEdges.map((edge, index) => { const source = positions.get(edge.source); const target = positions.get(edge.target); if (!source || !target) return null; return <path key={`${edge.source}-${edge.target}-${edge.kind}-${index}`} d={edgePath({x:source.x,y:source.y + 34},{x:target.x,y:target.y - 34})} fill="none" stroke="#64748b" strokeWidth="1.5" strokeOpacity="0.72" markerEnd="url(#dependency-arrow)" />; })}</g>
+          <g>{visibleNodes.map((node) => { const p = positions.get(node.id); if (!p) return null; return <g key={node.id} transform={`translate(${p.x - 92},${p.y - 34})`} onClick={() => onOpen(node.path)} className="cursor-pointer"><rect width="184" height="68" rx="10" fill="#0f172a" stroke={riskStroke[node.risk]} strokeWidth="1.5" /><rect x="0" y="0" width="4" height="68" rx="2" fill={riskStroke[node.risk]} /><text x="14" y="21" fill="#e2e8f0" fontSize="11" fontWeight="700" fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace">{node.label.length > 22 ? `${node.label.slice(0, 21)}…` : node.label}</text><text x="14" y="38" fill="#64748b" fontSize="9" fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace">{node.path.length > 27 ? `${node.path.slice(0, 26)}…` : node.path}</text><text x="14" y="55" fill="#94a3b8" fontSize="9" fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace">↓ {node.importedBy} callers · ↑ {node.imports} imports</text></g>; })}</g>
+        </svg>
+      </div>
+      {visibleNodes.length < graph.nodes.length && <div className="border-t border-amber-500/20 bg-amber-500/5 px-5 py-3 text-[11px] text-amber-200">Showing the 80 most connected nodes so the graph stays readable. {graph.nodes.length - visibleNodes.length} lower-connectivity nodes are omitted from the visual view.</div>}
+    </section>
+    <section className="rounded-xl border border-border bg-card p-6 shadow-sm"><div className="flex items-center justify-between"><div><p className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Most connected modules</p><p className="mt-1 text-xs text-muted-foreground">Click a node to inspect its source.</p></div><Sparkles size={16} className="text-primary"/></div><div className="mt-4 space-y-3">{visibleNodes.slice(0,10).map((node,i)=><button key={node.id} onClick={() => onOpen(node.path)} className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-muted"><span className="grid size-6 shrink-0 place-items-center rounded bg-muted font-mono text-[10px]">{i+1}</span><div className="min-w-0 flex-1"><p className="truncate font-mono text-xs font-semibold">{node.path}</p><p className="text-[10px] text-muted-foreground">{node.importedBy} callers · {node.imports} imports</p></div><RiskBadge risk={node.risk}/></button>)}</div></section>
+  </div>;
 }
 
 function RisksView({ risks, onOpen }: { risks: Finding[]; onOpen: (path:string)=>void }) {

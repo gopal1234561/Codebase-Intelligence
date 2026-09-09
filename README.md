@@ -17,6 +17,7 @@ Codebase Intelligence analyzes a GitHub repository and turns its source code int
 - **Global Code Search** — search source code across the currently analyzed repository.
 - **Ask Your Codebase** — query indexed repository information using the platform's analysis data.
 - **Source Inspection** — open analyzed files and inspect their source directly from the dashboard.
+- **Engineering Intelligence** — inspect Git history, file churn, code hotspots, and architecture drift signals.
 
 ## 🏗️ Architecture
 
@@ -98,6 +99,7 @@ For frontend development, run the frontend workspace with the repository's confi
 4. Analysis engines calculate architecture, security, quality, risk, and dependency insights.
 5. The API exposes the analyzed data to the React dashboard.
 6. Developers explore the repository through graphs, search, source inspection, impact analysis, and intelligence views.
+7. Engineering Intelligence uses repository history and structural analysis to highlight churn, hotspots, and architecture drift.
 
 ## 🔐 Security Scanner Note
 
@@ -109,4 +111,4 @@ Codebase Intelligence is designed to help developers understand unfamiliar repos
 
 ## 📌 Status
 
-This project is under active development. Analysis capabilities and intelligence features are continuously being expanded.
+**Actively maintained and evolving**, with ongoing improvements to code analysis, security detection, dependency intelligence, architecture analysis, and developer insights.

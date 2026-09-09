@@ -4,7 +4,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Router as WouterRouter, Link, useLocation } from "wouter";
-import { Search, Sparkles, TrendingUp } from "lucide-react";
+import { BookOpen, Search, Sparkles, TrendingUp } from "lucide-react";
 import "./codebase-theme.css";
 import RepositoryDashboard from "@/pages/repository-dashboard";
 import IntelligenceCenter from "@/pages/intelligence-center";
@@ -17,7 +17,7 @@ import DocumentationGenerator from "@/pages/documentation-generator";
 
 const queryClient = new QueryClient();
 function AppBoundary({ children }: { children: ReactNode }) { return <ErrorBoundary>{children}</ErrorBoundary>; }
-function WorkspaceActions() { return <><Link href="/search" className="fixed bottom-5 left-5 z-40 inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg hover:bg-muted"><Search size={15}/> Code Search</Link><Link href="/engineering" className="fixed bottom-5 left-44 z-40 hidden items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg hover:bg-muted md:inline-flex"><TrendingUp size={15}/> Engineering</Link><Link href="/insights" className="ci-ai-action fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-bold text-white shadow-lg"><Sparkles size={15}/> AI Insights</Link></>; }
+function WorkspaceActions() { return <><Link href="/search" className="fixed bottom-5 left-5 z-40 inline-flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg hover:bg-muted"><Search size={15}/> Code Search</Link><Link href="/documentation" className="fixed bottom-5 left-40 z-40 hidden items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg hover:bg-muted lg:inline-flex"><BookOpen size={15}/> Documentation</Link><Link href="/engineering" className="fixed bottom-5 left-[255px] z-40 hidden items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs font-bold text-foreground shadow-lg hover:bg-muted xl:inline-flex"><TrendingUp size={15}/> Engineering</Link><Link href="/insights" className="ci-ai-action fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-bold text-white shadow-lg"><Sparkles size={15}/> AI Insights</Link></>; }
 
 function RoutedApp() {
   const [location] = useLocation();

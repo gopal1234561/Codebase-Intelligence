@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Router as WouterRouter, Link, useLocation } from "wouter";
 import { Sparkles } from "lucide-react";
+import "./codebase-theme.css";
 import RepositoryDashboard from "@/pages/repository-dashboard";
 import IntelligenceCenter from "@/pages/intelligence-center";
 import ArchitectureView from "@/pages/architecture-view";
@@ -17,7 +18,15 @@ function AppBoundary({ children }: { children: ReactNode }) {
 }
 
 function AIInsightsButton() {
-  return <Link href="/insights" className="fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-3 text-xs font-bold text-primary-foreground shadow-lg transition-transform hover:-translate-y-0.5"><Sparkles size={15}/> AI Insights</Link>;
+  return (
+    <Link
+      href="/insights"
+      className="ci-ai-action fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-bold text-white shadow-lg"
+    >
+      <Sparkles size={15} />
+      AI Insights
+    </Link>
+  );
 }
 
 function RoutedApp() {
@@ -26,7 +35,7 @@ function RoutedApp() {
   const isWorkspaceRoute = workspaceRoutes.includes(location);
 
   useEffect(() => {
-    if (location === "/dashboard" || ["/files", "/graph", "/risks", "/activity"].includes(location)) {
+    if (["/dashboard", "/files", "/graph", "/risks", "/activity"].includes(location)) {
       sessionStorage.setItem("codebase-workspace-active", "true");
     }
   }, [location]);

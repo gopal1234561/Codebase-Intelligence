@@ -156,5 +156,73 @@ router.get("/repository/security", async (_req, res): Promise<void> => {
   finally { if (cloned) await fs.rm(cloned.temp, { recursive: true, force: true }); }
 });
 
+function tokenize(value: string): string[] {
+  return [...new Set(value.toLowerCase().split(/[^a-z0-9_.$/-]+/).filter((token) => token.length >= 2))];
+}
+
+function retrieveChunks(query: string, files: Array<{ path: string; content: string }>) {
+  const terms = tokenize(query);
+  const chunks: Array<{ file: string; startLine: number; endLine: number; content: string; score: number }> = [];
+  for (const file of files) {
+    const lines = file.content.split(/\r?\n/);
+    for (let start = 0; start < lines.length; start += 12) {
+      const block = lines.slice(start, start + 12).join("\n");
+      const haystack = `${file.path}\n${block}`.toLowerCase();
+      const matched = terms.filter((term) => haystack.includes(term)).length;
+      if (!matched) continue;
+      const exactPath = terms.some((term) => file.path.toLowerCase().includes(term)) ? 3 : 0;
+      chunks.push({ file: file.path, startLine: start + 1, endLine: Math.min(lines.length, start + 12), content: block.slice(0, 5000), score: matched * 2 + exactPath });
+    }
+  }
+  return chunks.sort((a, b) => b.score - a.score).slice(0, 6);
+}
+
+async function generateWithOpenAI(question: string, chunks: Array<{ file: string; startLine: number; endLine: number; content: string }>): Promise<string | null> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key || !chunks.length) return null;
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const context = chunks.map((chunk) => `FILE: ${chunk.file}:${chunk.startLine}-${chunk.endLine}\n${chunk.content}`).join("\n\n---\n\n");
+  try {
+    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model, temperature: 0.1, messages: [
+        { role: "system", content: "You are a codebase assistant. Answer only from the supplied repository context. If the context is insufficient, say so. Mention file paths and line ranges when useful. Do not invent code or architecture." },
+        { role: "user", content: `Question: ${question}\n\nRepository context:\n${context}` },
+      ] }),
+    });
+    if (!response.ok) return null;
+    const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+    return body.choices?.[0]?.message?.content?.trim() || null;
+  } catch { return null; }
+}
+
+router.post("/repository/ask", async (req, res): Promise<void> => {
+  if (!currentScan || !currentRepoUrl) { res.status(404).json({ error: "No repository scanned yet" }); return; }
+  const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
+  if (!question) { res.status(400).json({ error: "Ask a question about the scanned repository." }); return; }
+  if (question.length > 500) { res.status(400).json({ error: "Question is limited to 500 characters." }); return; }
+  let cloned: { temp: string; root: string } | null = null;
+  try {
+    cloned = await cloneForFile(currentRepoUrl);
+    const candidates: Array<{ path: string; content: string }> = [];
+    for (const file of currentScan.files) {
+      const absolute = path.resolve(cloned.root, file.path);
+      if (!absolute.startsWith(path.resolve(cloned.root) + path.sep)) continue;
+      try {
+        const stat = await fs.stat(absolute);
+        if (stat.size <= 1024 * 1024) candidates.push({ path: file.path, content: await fs.readFile(absolute, "utf8") });
+      } catch { /* skip unreadable files */ }
+    }
+    const chunks = retrieveChunks(question, candidates);
+    const generated = await generateWithOpenAI(question, chunks);
+    const answer = generated ?? (chunks.length
+      ? `I found ${chunks.length} relevant code sections. The strongest matches are ${chunks.slice(0, 4).map((c) => `${c.file}:${c.startLine}-${c.endLine}`).join(", ")}. Review these retrieved sections to answer the question from the repository evidence.`
+      : "I could not find relevant code sections in the scanned repository for that question.");
+    res.json({ answer, mode: generated ? "rag-llm" : "retrieval", model: generated ? (process.env.OPENAI_MODEL || "gpt-4o-mini") : null, sources: chunks.map(({ file, startLine, endLine, score }) => ({ file, startLine, endLine, score })) });
+  } catch (error) { res.status(500).json({ error: error instanceof Error ? error.message : "Repository question failed" }); }
+  finally { if (cloned) await fs.rm(cloned.temp, { recursive: true, force: true }); }
+});
+
 router.get("/repository/activity", (_req, res): void => { res.json(activity); });
 export default router;

@@ -113,6 +113,52 @@ router.get("/repository/risks", (_req, res): void => {
   res.json(currentScan.risks);
 });
 
+router.get("/repository/security", async (_req, res): Promise<void> => {
+  if (!currentScan || !currentRepoUrl) { res.status(404).json({ error: "No repository scanned yet" }); return; }
+  let cloned: { temp: string; root: string } | null = null;
+  const rules = [
+    { id: "hardcoded-credential", title: "Hardcoded credential", severity: "high" as const, pattern: /\b(?:api[_-]?key|secret|password|passwd|token|access[_-]?token|private[_-]?key)\s*[:=]\s*["'`][^"'`\n]{4,}["'`]/i },
+    { id: "aws-access-key", title: "AWS access key pattern", severity: "high" as const, pattern: /\bAKIA[0-9A-Z]{16}\b/ },
+    { id: "jwt-token", title: "JWT-like token", severity: "high" as const, pattern: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/ },
+    { id: "credential-url", title: "Credential embedded in URL", severity: "high" as const, pattern: /\b(?:https?|postgres(?:ql)?|mysql):\/\/[^\s/@]+:[^\s/@]+@/i },
+    { id: "dangerous-eval", title: "Dynamic code execution", severity: "medium" as const, pattern: /\beval\s*\(/i },
+    { id: "shell-execution", title: "Shell/command execution", severity: "medium" as const, pattern: /\b(?:child_process\.(?:exec|execFile|spawn)|os\.system|subprocess\.(?:run|Popen|call)|shell\s*=\s*True)\b/i },
+    { id: "insecure-http", title: "Insecure HTTP endpoint", severity: "low" as const, pattern: /\bhttp:\/\/(?!localhost\b|127\.0\.0\.1\b|example\.com\b)/i },
+  ];
+  const findings: Array<{ id: string; severity: "high" | "medium" | "low"; title: string; rule: string; file: string; line: number; detail: string }> = [];
+  let filesScanned = 0;
+  try {
+    cloned = await cloneForFile(currentRepoUrl);
+    for (const file of currentScan.files) {
+      const absolute = path.resolve(cloned.root, file.path);
+      if (!absolute.startsWith(path.resolve(cloned.root) + path.sep)) continue;
+      try {
+        const stat = await fs.stat(absolute);
+        if (stat.size > 1024 * 1024) continue;
+        const content = await fs.readFile(absolute, "utf8");
+        filesScanned += 1;
+        const lines = content.split(/\r?\n/);
+        for (const rule of rules) {
+          const matchIndex = lines.findIndex((line) => rule.pattern.test(line));
+          rule.pattern.lastIndex = 0;
+          if (matchIndex >= 0) {
+            findings.push({ id: `${rule.id}-${file.path}`, severity: rule.severity, title: rule.title, rule: rule.id, file: file.path, line: matchIndex + 1, detail: `${rule.title} matched by the current static rule set.` });
+          }
+        }
+      } catch { /* unreadable files are skipped */ }
+    }
+    const high = findings.filter((f) => f.severity === "high").length;
+    const medium = findings.filter((f) => f.severity === "medium").length;
+    const low = findings.filter((f) => f.severity === "low").length;
+    const score = findings.length ? Math.max(0, 100 - high * 20 - medium * 8 - low * 3) : null;
+    res.json({ score, status: findings.length ? "findings" : "no_findings", filesScanned, rulesScanned: rules.length, findings, counts: { high, medium, low, total: findings.length }, scannedAt: scannedAt.toISOString() });
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : "Security scan failed" });
+  } finally {
+    if (cloned) await fs.rm(cloned.temp, { recursive: true, force: true });
+  }
+});
+
 router.get("/repository/activity", (_req, res): void => { res.json(activity); });
 
 export default router;

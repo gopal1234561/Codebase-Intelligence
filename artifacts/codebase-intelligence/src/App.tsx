@@ -13,6 +13,7 @@ import DependencyGraph from "@/pages/dependency-graph";
 import ImpactAnalysis from "@/pages/impact-analysis";
 import CodeSearch from "@/pages/code-search";
 import EngineeringInsights from "@/pages/engineering-insights";
+import DocumentationGenerator from "@/pages/documentation-generator";
 
 const queryClient = new QueryClient();
 function AppBoundary({ children }: { children: ReactNode }) { return <ErrorBoundary>{children}</ErrorBoundary>; }
@@ -22,10 +23,11 @@ function RoutedApp() {
   const [location] = useLocation();
   const workspaceRoutes = ["/", "/dashboard", "/files", "/graph", "/risks", "/activity", "/impact"];
   const isWorkspaceRoute = workspaceRoutes.includes(location);
-  useEffect(() => { if (["/dashboard", "/files", "/graph", "/risks", "/activity", "/impact"].includes(location)) sessionStorage.setItem("codebase-workspace-active", "true"); }, [location]);
+  useEffect(() => { if (["/dashboard", "/files", "/graph", "/risks", "/activity", "/impact", "/architecture", "/documentation"].includes(location)) sessionStorage.setItem("codebase-workspace-active", "true"); }, [location]);
   if (location === "/insights") return <IntelligenceCenter />;
   if (location === "/engineering") return <EngineeringInsights />;
   if (location === "/architecture") return <ArchitectureView />;
+  if (location === "/documentation") return <DocumentationGenerator />;
   if (location === "/search") return <><CodeSearch /><Link href="/insights" className="ci-ai-action fixed bottom-5 right-5 z-40 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-bold text-white shadow-lg"><Sparkles size={15}/> AI Insights</Link></>;
   if (location === "/impact") return <><ImpactAnalysis/><WorkspaceActions/></>;
   if (location === "/graph") return <><DependencyGraph /><WorkspaceActions /></>;

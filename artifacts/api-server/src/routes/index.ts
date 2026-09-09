@@ -4,6 +4,7 @@ import intelligenceRouter from "./intelligence";
 import repositoryRouter from "./repository";
 import searchRouter from "./search";
 import analyticsRouter from "./analytics";
+import documentationRouter from "./documentation";
 
 const router: IRouter = Router();
 
@@ -12,5 +13,6 @@ router.use(repositoryRouter);
 router.use(searchRouter);
 router.use(intelligenceRouter);
 router.use(analyticsRouter);
+router.use(documentationRouter);
 
 export default router;

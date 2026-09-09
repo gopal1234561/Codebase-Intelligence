@@ -8,6 +8,8 @@ const execFileAsync = promisify(execFile);
 
 type Risk = "high" | "medium" | "low";
 
+type DependencyKind = "import" | "reference" | "generated";
+
 export type ScannedFile = {
   path: string;
   name: string;
@@ -28,7 +30,7 @@ export type ScanResult = {
   projectName: string;
   rootPath: string;
   files: ScannedFile[];
-  graphEdges: Array<{ source: string; target: string; kind: "import" | "reference" | "generated" }>;
+  graphEdges: Array<{ source: string; target: string; kind: DependencyKind }>;
   risks: Array<{
     id: string;
     severity: Risk;
@@ -94,28 +96,115 @@ function symbolsOf(text: string, language: string): string[] {
   return [...found].slice(0, 40);
 }
 
+/**
+ * Extract dependency specifiers from source text. This intentionally supports
+ * both language imports and file references such as HTML script/link tags.
+ * External packages are kept in the file's imports list but are only turned
+ * into graph edges when they resolve to a file inside the scanned repository.
+ */
 function importsOf(text: string, language: string): string[] {
   const found = new Set<string>();
+
   if (["TypeScript", "JavaScript", "Vue", "Svelte"].includes(language)) {
-    for (const m of text.matchAll(/(?:import\s+(?:[^'";]+?\s+from\s+)?|require\s*\(\s*|import\s*\()(['"])(.*?)\1/g)) found.add(m[2]);
+    for (const m of text.matchAll(/(?:import\s+(?:[^'";]+?\s+from\s+)?|require\s*\(\s*|import\s*\()(['"])(.*?)\1/g)) {
+      found.add(m[2]);
+    }
+  } else if (language === "HTML") {
+    // HTML -> JavaScript and HTML -> CSS are real repository dependencies.
+    for (const m of text.matchAll(/<script\b[^>]*\bsrc\s*=\s*(["'])(.*?)\1/gi)) found.add(m[2]);
+    for (const m of text.matchAll(/<link\b[^>]*\bhref\s*=\s*(["'])(.*?)\1/gi)) {
+      const rel = (text.slice(Math.max(0, m.index ?? 0), (m.index ?? 0) + 300).match(/\brel\s*=\s*["']([^"']+)["']/i)?.[1] ?? "").toLowerCase();
+      if (rel.includes("stylesheet") || /\.css(?:[?#]|$)/i.test(m[2])) found.add(m[2]);
+    }
+  } else if (language === "CSS" || language === "SCSS") {
+    for (const m of text.matchAll(/@import\s*(?:url\(\s*)?(["']?)([^"'\s)]+)\1\s*\)?/gi)) found.add(m[2]);
   } else if (language === "Python") {
-    for (const m of text.matchAll(/^\s*(?:from|import)\s+([A-Za-z0-9_.$/-]+)/gm)) found.add(m[1]);
+    for (const m of text.matchAll(/^\s*from\s+([A-Za-z0-9_.$/-]+)\s+import\s+/gm)) found.add(m[1]);
+    for (const m of text.matchAll(/^\s*import\s+([A-Za-z0-9_.$/-]+)/gm)) found.add(m[1]);
   } else if (language === "Java") {
-    for (const m of text.matchAll(/^\s*import\s+([^;]+);/gm)) found.add(m[1]);
-  } else if (["Go", "Rust", "C", "C/C++", "C++"].includes(language)) {
-    for (const m of text.matchAll(/(?:import\s+|#include\s*[<"])([^>"]+)/g)) found.add(m[1]);
+    for (const m of text.matchAll(/^\s*import\s+(?:static\s+)?([^;]+);/gm)) found.add(m[1].trim());
+  } else if (["Go"].includes(language)) {
+    for (const m of text.matchAll(/\bimport\s+(?:\(\s*)?["']([^"']+)["']/g)) found.add(m[1]);
+  } else if (language === "Rust") {
+    for (const m of text.matchAll(/^\s*(?:pub\s+)?(?:use|mod)\s+([A-Za-z0-9_:@./-]+)/gm)) found.add(m[1]);
+  } else if (["C", "C/C++", "C++"].includes(language)) {
+    for (const m of text.matchAll(/#\s*include\s*[<"]([^>"]+)[>"]/g)) found.add(m[1]);
+  } else if (language === "PHP") {
+    for (const m of text.matchAll(/\b(?:require|require_once|include|include_once)\s*\(?\s*['"]([^'"]+)['"]/g)) found.add(m[1]);
+  } else if (language === "Ruby") {
+    for (const m of text.matchAll(/\brequire_relative\s+['"]([^'"]+)['"]/g)) found.add(m[1]);
+    for (const m of text.matchAll(/\brequire\s+['"]([^'"]+)['"]/g)) found.add(m[1]);
+  } else if (language === "Swift") {
+    for (const m of text.matchAll(/^\s*import\s+([A-Za-z0-9_.$/-]+)/gm)) found.add(m[1]);
+  } else if (language === "Kotlin") {
+    for (const m of text.matchAll(/^\s*import\s+([A-Za-z0-9_.$/-]+)/gm)) found.add(m[1]);
   }
-  return [...found].slice(0, 80);
+
+  return [...found].filter((value) => value && !value.startsWith("#")).slice(0, 120);
+}
+
+function stripQueryAndHash(value: string): string {
+  return value.split(/[?#]/, 1)[0];
+}
+
+function normalizeSpecifier(specifier: string): string {
+  return stripQueryAndHash(specifier.trim().replace(/^\.\//, ""));
+}
+
+function candidatesFor(base: string, extensions: string[]): string[] {
+  return [
+    base,
+    ...extensions.map((ext) => `${base}${ext}`),
+    ...extensions.map((ext) => path.join(base, `index${ext}`)),
+  ];
 }
 
 function resolveImport(importer: string, specifier: string, root: string, known: Set<string>): string | null {
-  if (!specifier.startsWith(".")) return null;
-  const base = path.resolve(path.dirname(importer), specifier);
-  const candidates = [base, ...[".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".java", ".css", ".json"].map((ext) => `${base}${ext}`)];
-  candidates.push(...["index.ts", "index.tsx", "index.js", "index.jsx", "index.py"].map((name) => path.join(base, name)));
+  const raw = normalizeSpecifier(specifier);
+  if (!raw || /^(?:https?:|data:|#)/i.test(raw)) return null;
+
+  const importerDir = path.dirname(importer);
+  const normalizedImporterDir = path.resolve(importerDir);
+  const isRelative = raw.startsWith(".") || raw.startsWith("/");
+  const candidates: string[] = [];
+
+  if (isRelative) {
+    const relativeBase = raw.startsWith("/") ? path.join(root, raw.slice(1)) : path.resolve(normalizedImporterDir, raw);
+    candidates.push(...candidatesFor(relativeBase, [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".py", ".java", ".css", ".scss", ".json", ".html", ".vue", ".svelte", ".h", ".hpp", ".c", ".cpp", ".go", ".rs", ".php", ".rb", ".swift", ".kt"]));
+  } else {
+    // HTML/CSS/C/C++ commonly reference a sibling file without ./.
+    const localBase = path.resolve(normalizedImporterDir, raw);
+    candidates.push(...candidatesFor(localBase, [".js", ".mjs", ".cjs", ".ts", ".tsx", ".css", ".scss", ".html", ".json", ".h", ".hpp", ".c", ".cpp", ".py", ".rs", ".php", ".rb", ".swift", ".kt"]));
+
+    // Python: package.module -> package/module.py or package/module/__init__.py
+    if (raw.includes(".")) {
+      const dotted = raw.replace(/\./g, "/");
+      const dottedBase = path.resolve(root, dotted);
+      candidates.push(...candidatesFor(dottedBase, [".py", ".pyi", ".js", ".ts", ".java"]));
+    }
+
+    // Java/Kotlin: com.example.Foo -> com/example/Foo.java|kt
+    const javaBase = path.resolve(root, raw.replace(/\./g, "/"));
+    candidates.push(...candidatesFor(javaBase, [".java", ".kt"]));
+
+    // Rust crate::foo::bar -> src/foo/bar.rs or src/foo/bar/mod.rs.
+    if (raw.startsWith("crate::") || raw.startsWith("self::") || raw.startsWith("super::")) {
+      const rustPath = raw.replace(/^(crate|self|super)::/, "").replace(/::/g, "/");
+      candidates.push(...candidatesFor(path.resolve(root, "src", rustPath), [".rs"]));
+    }
+  }
+
   for (const candidate of candidates) {
     const rel = path.relative(root, candidate).split(path.sep).join("/");
+    if (rel.startsWith("../") || rel === "..") continue;
     if (known.has(rel)) return rel;
+  }
+
+  // Last-resort basename match for local C/C++ headers and simple HTML assets.
+  const normalized = raw.replace(/^.*[\\/]/, "");
+  if (normalized) {
+    const matches = [...known].filter((file) => path.posix.basename(file) === normalized);
+    if (matches.length === 1) return matches[0];
   }
   return null;
 }
@@ -162,6 +251,7 @@ export async function scanCodebase(repoUrl?: string): Promise<ScanResult> {
     const known = new Set(relativeFiles);
     const scanned: ScannedFile[] = [];
     const importsByFile = new Map<string, string[]>();
+
     for (let i = 0; i < absoluteFiles.length; i++) {
       const absolute = absoluteFiles[i];
       const rel = relativeFiles[i];
@@ -173,21 +263,45 @@ export async function scanCodebase(repoUrl?: string): Promise<ScanResult> {
       const symbols = symbolsOf(text, language);
       const riskInfo = riskFor(text, complexity, lines);
       const excerpt = text.split(/\r?\n/).find((line) => line.trim() && !line.trim().startsWith("//"))?.trim().slice(0, 240) ?? "";
-      scanned.push({ path: rel, name: path.basename(rel), directory: path.posix.dirname(rel) === "." ? "." : path.posix.dirname(rel), language, lines, complexity, ...riskInfo, summary: summaryFor(language, imports, symbols, lines), imports, importedBy: [], symbols, excerpt });
+      scanned.push({
+        path: rel,
+        name: path.basename(rel),
+        directory: path.posix.dirname(rel) === "." ? "." : path.posix.dirname(rel),
+        language,
+        lines,
+        complexity,
+        ...riskInfo,
+        summary: summaryFor(language, imports, symbols, lines),
+        imports,
+        importedBy: [],
+        symbols,
+        excerpt,
+      });
       importsByFile.set(rel, imports);
     }
+
     const edges: ScanResult["graphEdges"] = [];
     const incoming = new Map<string, string[]>();
+    const edgeKeys = new Set<string>();
+
     for (const file of scanned) {
       for (const specifier of importsByFile.get(file.path) ?? []) {
         const target = resolveImport(path.join(source.root, file.path), specifier, source.root, known);
-        if (!target) continue;
-        edges.push({ source: file.path, target, kind: "import" });
+        if (!target || target === file.path) continue;
+        const key = `${file.path}->${target}`;
+        if (edgeKeys.has(key)) continue;
+        edgeKeys.add(key);
+
+        const isFileReference = file.language === "HTML" || file.language === "CSS" || file.language === "SCSS" || ["C", "C/C++", "C++"].includes(file.language);
+        const kind: DependencyKind = isFileReference ? "reference" : "import";
+        edges.push({ source: file.path, target, kind });
+
         const list = incoming.get(target) ?? [];
         list.push(file.path);
         incoming.set(target, list);
       }
     }
+
     for (const file of scanned) file.importedBy = incoming.get(file.path) ?? [];
 
     const risks = scanned.filter((file) => file.risk !== "low").map((file) => ({
@@ -199,6 +313,7 @@ export async function scanCodebase(repoUrl?: string): Promise<ScanResult> {
       impact: file.risk === "high" ? "Potential reliability or security issue" : "Maintenance risk",
       relatedFiles: file.importedBy.slice(0, 10),
     }));
+
     const counts = new Map<string, number>();
     for (const file of scanned) counts.set(file.language, (counts.get(file.language) ?? 0) + 1);
     const total = scanned.length || 1;

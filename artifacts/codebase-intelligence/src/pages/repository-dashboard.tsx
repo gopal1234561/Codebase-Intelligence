@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Activity, AlertTriangle, BarChart3, CheckCircle2, ExternalLink, FileCode2, GitBranch, LoaderCircle, Menu, Network, RefreshCw, Search, ShieldAlert, Sparkles, TrendingUp, X } from "lucide-react";
+import { Activity, AlertTriangle, LayoutDashboard, CheckCircle2, ExternalLink, FileCode2, GitBranch, LoaderCircle, Menu, Network, RefreshCw, Search, ShieldAlert, Sparkles, TrendingUp, X } from "lucide-react";
 
 type Risk = "high" | "medium" | "low";
 type FileItem = { path: string; name: string; directory: string; language: string; lines: number; complexity: number; risk: Risk; riskLabel: string; summary: string; importsCount: number; importedByCount: number };
@@ -19,13 +19,40 @@ export default function RepositoryDashboard() {
   const [location, navigate] = useLocation();
   const [repoUrl, setRepoUrl] = useState(""); const [overview, setOverview] = useState<Overview | null>(null); const [files, setFiles] = useState<FileItem[]>([]); const [risks, setRisks] = useState<Finding[]>([]); const [activity, setActivity] = useState<EventItem[]>([]); const [graph, setGraph] = useState<Graph | null>(null); const [loading, setLoading] = useState(false); const [message, setMessage] = useState(""); const [error, setError] = useState(""); const [search, setSearch] = useState(""); const [riskFilter, setRiskFilter] = useState("all"); const [languageFilter, setLanguageFilter] = useState("all"); const [selectedFile, setSelectedFile] = useState<Detail | null>(null); const [fileLoading, setFileLoading] = useState(false); const [mobileMenuOpen, setMobileMenuOpen] = useState(false); const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const refresh = async () => { setError(""); if (!overview) return; try { const [o, f, r, a, g] = await Promise.all([api<Overview>("/repository/overview"), api<FileItem[]>("/repository/files?limit=5000"), api<Finding[]>("/repository/risks"), api<EventItem[]>("/repository/activity"), api<Graph>("/repository/graph")]); setOverview(o); setFiles(f); setRisks(r); setActivity(a); setGraph(g); setRepoUrl(o.repoUrl); } catch (e) { setError(e instanceof Error ? e.message : "Unable to refresh analysis"); } };
-  useEffect(() => { api<Overview>("/repository/overview").then((o) => { setOverview(o); setRepoUrl(o.repoUrl); return refresh(); }).catch(() => {}); }, []);
+  useEffect(() => {
+    let cancelled = false;
+    const loadInitialWorkspace = async () => {
+      setError("");
+      try {
+        const o = await api<Overview>("/repository/overview");
+        if (cancelled) return;
+        setOverview(o);
+        setRepoUrl(o.repoUrl);
+
+        const [f, r, a, g] = await Promise.all([
+          api<FileItem[]>("/repository/files?limit=5000"),
+          api<Finding[]>("/repository/risks"),
+          api<EventItem[]>("/repository/activity"),
+          api<Graph>("/repository/graph"),
+        ]);
+        if (cancelled) return;
+        setFiles(f);
+        setRisks(r);
+        setActivity(a);
+        setGraph(g);
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Unable to load the repository workspace");
+      }
+    };
+    void loadInitialWorkspace();
+    return () => { cancelled = true; };
+  }, []);
   useEffect(() => { setMobileMenuOpen(false); }, [location]);
   const scan = async () => { setError(""); setMessage(""); if (!repoUrl.trim()) { setError("Paste a public GitHub repository URL first."); return; } setLoading(true); try { const result = await api<{ projectName: string }>("/repository/scan", { method: "POST", body: JSON.stringify({ repoUrl }) }); setMessage(`Analyzed ${result.projectName}.`); const [o, f, r, a, g] = await Promise.all([api<Overview>("/repository/overview"), api<FileItem[]>("/repository/files?limit=5000"), api<Finding[]>("/repository/risks"), api<EventItem[]>("/repository/activity"), api<Graph>("/repository/graph")]); setOverview(o); setFiles(f); setRisks(r); setActivity(a); setGraph(g); setRepoUrl(o.repoUrl); navigate("/dashboard"); } catch (e) { setError(e instanceof Error ? e.message : "Repository scan failed"); } finally { setLoading(false); } };
   const openFile = async (file: FileItem) => { setFileLoading(true); setError(""); try { setSelectedFile(await api<Detail>(`/repository/file/${file.path.split("/").map(encodeURIComponent).join("/")}`)); } catch (e) { setError(e instanceof Error ? e.message : "Could not open file"); } finally { setFileLoading(false); } };
   const languages = useMemo(() => [...new Set(files.map((file) => file.language))].sort(), [files]); const filteredFiles = useMemo(() => files.filter((file) => (!search || `${file.path} ${file.summary}`.toLowerCase().includes(search.toLowerCase())) && (riskFilter === "all" || file.risk === riskFilter) && (languageFilter === "all" || file.language === languageFilter)), [files, search, riskFilter, languageFilter]);
   const page = location === "/dashboard" ? "overview" : location === "/files" ? "files" : location === "/graph" ? "graph" : location === "/risks" ? "risks" : location === "/activity" ? "activity" : "overview";
-  const nav = [["/dashboard", "Overview", BarChart3], ["/graph", "Dependency graph", GitBranch], ["/impact", "Impact Analysis", GitBranch], ["/files", "Files", FileCode2], ["/risks", "Risk register", ShieldAlert], ["/activity", "Activity", Activity]] as const;
+  const nav = [["/dashboard", "Overview", LayoutDashboard], ["/graph", "Dependency graph", GitBranch], ["/impact", "Impact Analysis", GitBranch], ["/files", "Files", FileCode2], ["/risks", "Risk register", ShieldAlert], ["/activity", "Activity", Activity]] as const;
   const aiNav = [["/insights", "AI Insights", Sparkles], ["/search", "Code Search", Search], ["/documentation", "Documentation", FileCode2]] as const;
   const engNav = [["/engineering", "Engineering Intelligence", TrendingUp], ["/architecture", "Architecture", Network]] as const;
 
